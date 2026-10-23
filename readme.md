@@ -2,6 +2,11 @@
 
 A Spring Boot application using Java 21, Maven, and PostgreSQL. Docker Compose starts the application and its database together.
 
+## 👥 Équipe
+
+- **[Aysu] [SAHIN]** : [@pseudo-github](https://github.com/aysusahin27
+- **[Manal] [EL BAZTAMI]** : [@pseudo-github](https://github.com/Menny206)
+  
 ## Requirements
 
 - Docker Engine or Docker Desktop
