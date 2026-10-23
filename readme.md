@@ -4,8 +4,8 @@ A Spring Boot application using Java 21, Maven, and PostgreSQL. Docker Compose s
 
 ## 👥 Équipe
 
-- **[Aysu] [SAHIN]** : [@pseudo-github](https://github.com/aysusahin27
-- **[Manal] [EL BAZTAMI]** : [@pseudo-github](https://github.com/Menny206)
+- **[Aysu] [SAHIN]** : [@aysusahin27](https://github.com/aysusahin27)
+- **[Manal] [EL BAZTAMI]** : [@Menny206](https://github.com/Menny206)
   
 ## Requirements
 
