@@ -35,3 +35,8 @@ docker compose up -d
 ```
 
 The `-v` option deletes the database volume, so **all stored database data will be permanently removed**. The second command recreates the containers in the background.
+
+
+sudo addgroup --system docker
+sudo adduser $USER docker
+newgrp docker
