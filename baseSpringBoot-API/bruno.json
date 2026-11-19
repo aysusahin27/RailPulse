@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "baseSpringBoot-API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
