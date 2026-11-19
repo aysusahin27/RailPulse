@@ -1,0 +1,23 @@
+meta {
+  name: Update Station (Auth)
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/stations/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "name": "Paris Gare de Lyon — Hall 1 & 2",
+    "city": "Paris",
+    "uicCode": "87271007"
+  }
+}

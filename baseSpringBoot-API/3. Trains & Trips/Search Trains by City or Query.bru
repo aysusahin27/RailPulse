@@ -1,0 +1,15 @@
+meta {
+  name: Search Trains by City or Query
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/trips/search?q=Paris
+  body: none
+  auth: none
+}
+
+params:query {
+  q: Paris
+}

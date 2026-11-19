@@ -1,0 +1,15 @@
+meta {
+  name: Search Stations by City or Name
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/stations/search?q=Paris
+  body: none
+  auth: none
+}
+
+params:query {
+  q: Paris
+}

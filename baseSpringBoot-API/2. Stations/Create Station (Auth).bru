@@ -1,0 +1,23 @@
+meta {
+  name: Create Station (Auth)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/stations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "name": "Nantes Gare Centrale",
+    "city": "Nantes",
+    "uicCode": "87481002"
+  }
+}

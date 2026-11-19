@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RailPulse — Départs & Gares en Direct</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="/" class="brand">
+        <div class="brand-icon">🚆</div>
+        <div class="brand-text">
+          <h1>RailPulse</h1>
+          <span>Gares & Trains en Direct</span>
+        </div>
+      </a>
+
+      <div class="nav-center">
+        <div class="live-indicator">
+          <span class="pulse-dot"></span>
+          <span>FLUX EN DIRECT</span>
+        </div>
+        <div class="clock-display" id="liveClock">00:00:00</div>
+      </div>
+
+      <div class="nav-actions" id="navAuthSection">
+        <button class="btn btn-outline btn-sm" id="btnOpenAuthModal">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+          Connexion
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Search Section -->
+  <header class="hero">
+    <div class="hero-card">
+      <div class="hero-title">
+        <h2>Trouvez les prochains départs de trains</h2>
+        <p>Recherchez une ville ou une gare ferroviaire pour consulter le tableau des départs en temps réel.</p>
+      </div>
+
+      <div class="search-box-wrapper">
+        <div class="search-input-group">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="Rechercher une ville ou une gare (ex: Paris, Lyon, Marseille, Bordeaux, Lille, Strasbourg...)" autocomplete="off">
+          <button id="searchClearBtn" class="search-clear">✕</button>
+        </div>
+        <select id="stationFilterSelect" class="station-select" title="Filtrer par gare de départ">
+          <option value="">Toutes les gares</option>
+        </select>
+        <button id="btnRefresh" class="btn btn-outline" title="Actualiser les départs">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Actualiser
+        </button>
+        <button id="btnChime" class="btn btn-outline btn-icon" title="Jouer le jingle sonore de gare" style="font-size: 1.1rem;">
+          🔔
+        </button>
+      </div>
+
+      <div class="city-chips">
+        <span class="city-chip-label">Villes rapides :</span>
+        <button class="chip active" data-city="">Toutes</button>
+        <button class="chip" data-city="Paris">Paris</button>
+        <button class="chip" data-city="Lyon">Lyon</button>
+        <button class="chip" data-city="Marseille">Marseille</button>
+        <button class="chip" data-city="Bordeaux">Bordeaux</button>
+        <button class="chip" data-city="Lille">Lille</button>
+        <button class="chip" data-city="Strasbourg">Strasbourg</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Departures Board Section -->
+  <main class="main-content">
+    <div class="board-header">
+      <div class="station-badge-group">
+        <div class="station-title">
+          <span id="currentStationName">Toutes les gares</span>
+        </div>
+        <span class="station-uic" id="currentStationUic">FR-NETWORK</span>
+      </div>
+
+      <div class="board-stats">
+        <div class="board-stat-item">Trains affichés : <strong id="statTotalTrips">0</strong></div>
+        <div class="board-stat-item">Ponctualité : <strong id="statOnTimeRate">100%</strong></div>
+      </div>
+    </div>
+
+    <!-- Controls & Filters -->
+    <div class="board-controls">
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="all">Tous les trains</button>
+        <button class="filter-tab" data-filter="TGV">TGV InOui & Ouigo</button>
+        <button class="filter-tab" data-filter="TER">TER Régional</button>
+        <button class="filter-tab" data-filter="ON_TIME">À l'heure uniquement</button>
+      </div>
+
+      <div style="margin-left: auto; display: flex; gap: 0.5rem;" id="adminActionButtons">
+        <!-- Dynamically populated with Add Train / Add Station when logged in -->
+      </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="board-container">
+      <table class="board-table">
+        <thead>
+          <tr>
+            <th>Heure</th>
+            <th>Train</th>
+            <th>Destination</th>
+            <th>Gare de Départ</th>
+            <th>Voie</th>
+            <th>Statut</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="tripsTableBody">
+          <!-- Populated by JavaScript -->
+          <tr>
+            <td colspan="7" class="empty-state">
+              <div class="loading-spinner"></div>
+              <p style="margin-top: 1rem;">Chargement des trains en direct...</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div class="footer-left">
+        <div class="footer-logo">🚆 <strong>RailPulse</strong></div>
+        <p>Système d'affichage dynamique des départs ferroviaires en temps réel.</p>
+      </div>
+      <div class="footer-center">
+        <span>Conçu & Réalisé par</span>
+        <strong>Aysu SAHIN & Manal EL BAZTAMI</strong>
+      </div>
+      <div class="footer-right">
+        <div class="api-status-pill">
+          <span class="pulse-dot"></span>
+          <span>API REST Spring Boot & PostgreSQL</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- Auth Modal (Login / Register) -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="authModalTitle">Connexion</h3>
+        <button class="modal-close" data-close-modal="authModal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" id="tabBtnLogin">Se connecter</button>
+          <button class="modal-tab-btn" id="tabBtnRegister">Créer un compte</button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm">
+          <div class="form-group">
+            <label class="form-label" for="loginUsername">Nom d'utilisateur</label>
+            <input type="text" id="loginUsername" class="form-control" placeholder="ex: voyageur ou admin" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="loginPassword">Mot de passe</label>
+            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+            Se connecter
+          </button>
+
+          <div class="demo-credentials-box">
+            <strong>Comptes de démo :</strong>
+            <div class="quick-login-btns">
+              <button type="button" class="btn btn-outline btn-sm" id="btnQuickAdmin">👑 Admin (admin / admin123)</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnQuickUser">👤 Voyageur (voyageur / password123)</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Register Form (hidden by default) -->
+        <form id="registerForm" style="display: none;">
+          <div class="form-group">
+            <label class="form-label" for="regUsername">Nom d'utilisateur</label>
+            <input type="text" id="regUsername" class="form-control" placeholder="min. 3 caractères" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="regEmail">Adresse e-mail</label>
+            <input type="email" id="regEmail" class="form-control" placeholder="exemple@sncf.fr" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="regFullName">Nom complet</label>
+            <input type="text" id="regFullName" class="form-control" placeholder="ex: Jean Dupont">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="regPassword">Mot de passe</label>
+            <input type="password" id="regPassword" class="form-control" placeholder="min. 6 caractères" required>
+          </div>
+          <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 0.5rem;">
+            Créer mon compte
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit Train Modal -->
+  <div class="modal-overlay" id="tripModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="tripModalTitle">Programmer un Train</h3>
+        <button class="modal-close" data-close-modal="tripModal">✕</button>
+      </div>
+
+      <form id="tripForm">
+        <div class="modal-body">
+          <input type="hidden" id="tripEditId">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="tripLabel">Numéro / Code du Train</label>
+              <input type="text" id="tripLabel" class="form-control" placeholder="ex: TGV 6601" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="tripTrainType">Type de Train</label>
+              <select id="tripTrainType" class="form-control" required>
+                <option value="TGV INOUI">TGV INOUI</option>
+                <option value="OUIGO">OUIGO</option>
+                <option value="TER">TER</option>
+                <option value="INTERCITÉS">INTERCITÉS</option>
+                <option value="EUROSTAR">EUROSTAR</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tripDepartureStation">Gare de Départ</label>
+            <select id="tripDepartureStation" class="form-control" required>
+              <!-- Filled with stations -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tripDestination">Destination Finale</label>
+            <input type="text" id="tripDestination" class="form-control" placeholder="ex: Marseille Saint-Charles" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="tripDepartureTime">Heure de départ</label>
+              <input type="time" id="tripDepartureTime" class="form-control" value="09:30" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="tripTrack">Voie / Quai</label>
+              <input type="text" id="tripTrack" class="form-control" placeholder="ex: Voie 2" value="Voie 1">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="tripStatus">Statut</label>
+              <select id="tripStatus" class="form-control">
+                <option value="ON_TIME">À l'heure</option>
+                <option value="DELAYED">Retardé</option>
+                <option value="BOARDING">Embarquement</option>
+                <option value="CANCELLED">Supprimé</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="tripStatusMessage">Message info (optionnel)</label>
+              <input type="text" id="tripStatusMessage" class="form-control" placeholder="ex: Retard 15 min">
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal="tripModal">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveTrip">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Station Modal -->
+  <div class="modal-overlay" id="stationModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="stationModalTitle">Ajouter une Gare</h3>
+        <button class="modal-close" data-close-modal="stationModal">✕</button>
+      </div>
+
+      <form id="stationForm">
+        <div class="modal-body">
+          <input type="hidden" id="stationEditId">
+
+          <div class="form-group">
+            <label class="form-label" for="stationName">Nom de la Gare</label>
+            <input type="text" id="stationName" class="form-control" placeholder="ex: Lyon Part-Dieu" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="stationCity">Ville</label>
+            <input type="text" id="stationCity" class="form-control" placeholder="ex: Lyon" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="stationUic">Code UIC (identifiant ferroviaire)</label>
+            <input type="text" id="stationUic" class="form-control" placeholder="ex: 87723197" required>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal="stationModal">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveStation">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Train Details Modal -->
+  <div class="modal-overlay" id="detailsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="detailsTitle">Détails du Train</h3>
+        <button class="modal-close" data-close-modal="detailsModal">✕</button>
+      </div>
+      <div class="modal-body" id="detailsBody">
+        <!-- Filled dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close-modal="detailsModal">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

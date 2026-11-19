@@ -1,0 +1,26 @@
+meta {
+  name: Register User
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "nouveau_voyageur",
+    "email": "nouveau@sncf.fr",
+    "password": "password123",
+    "fullName": "Voyageur Régulier"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.token) {
+    bru.setVar("token", res.body.token);
+  }
+}

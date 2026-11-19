@@ -1,0 +1,28 @@
+meta {
+  name: Create Train (Auth)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/trips
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "label": "TGV INOUI 6645",
+    "trainType": "TGV INOUI",
+    "destinationName": "Marseille Saint-Charles",
+    "departureTime": "14:15",
+    "track": "Voie 4",
+    "status": "ON_TIME",
+    "statusMessage": "À l'heure",
+    "departureStationId": 1
+  }
+}

@@ -1,0 +1,28 @@
+meta {
+  name: Update Train (Auth)
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/trips/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "label": "TGV INOUI 6601",
+    "trainType": "TGV INOUI",
+    "destinationName": "Marseille Saint-Charles",
+    "departureTime": "07:15",
+    "track": "Voie 2",
+    "status": "BOARDING",
+    "statusMessage": "Embarquement Voie 2",
+    "departureStationId": 1
+  }
+}
