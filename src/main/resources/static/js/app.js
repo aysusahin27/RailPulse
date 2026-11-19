@@ -8,10 +8,12 @@ const state = {
   token: localStorage.getItem('railpulse_token') || null,
   user: JSON.parse(localStorage.getItem('railpulse_user') || 'null'),
   stations: [],
-  trips: [],
+  trips: null,
   activeCity: '',
   activeFilter: 'all',
   searchDebounceTimer: null,
+  tripsRequest: 0,
+  modalTrigger: null,
 };
 
 // DOM Elements
@@ -127,27 +129,34 @@ async function loadStations() {
   }
 }
 
-async function loadTrips(searchQuery = '', selectedStationId = null) {
+async function loadTrips() {
+  const request = ++state.tripsRequest;
+  state.trips = null;
   renderLoadingState();
   try {
     let url = '/trips';
-    const stId = selectedStationId !== null ? selectedStationId : (DOM.stationFilterSelect ? DOM.stationFilterSelect.value : '');
+    const stId = DOM.stationFilterSelect.value;
 
     if (stId) {
       url = `/stations/${stId}/trips`;
     } else {
-      const query = searchQuery.trim() || state.activeCity.trim();
+      const query = DOM.searchInput.value.trim() || state.activeCity;
       if (query) {
         url = `/trips/search?q=${encodeURIComponent(query)}`;
       }
     }
 
     const trips = await apiFetch(url);
+    if (request !== state.tripsRequest) return false;
     state.trips = trips || [];
     renderBoard();
+    return true;
   } catch (err) {
-    renderEmptyState('Impossible de charger les trains en direct');
-    showToast(err.message, 'error');
+    if (request !== state.tripsRequest) return false;
+    DOM.statTotalTrips.textContent = '—';
+    DOM.statOnTimeRate.textContent = '—';
+    renderEmptyState('Impossible de charger les départs', 'Utilisez le bouton Actualiser pour réessayer.');
+    return false;
   }
 }
 
@@ -161,12 +170,18 @@ function populateStationSelect() {
   }
 
   if (DOM.stationFilterSelect) {
-    DOM.stationFilterSelect.innerHTML = '<option value="">Toutes les gares de départ</option>' + optionsHtml;
+    const selected = DOM.stationFilterSelect.value;
+    DOM.stationFilterSelect.innerHTML = '<option value="">Toutes les gares</option>' + optionsHtml;
+    if (state.stations.some(station => String(station.id) === selected)) {
+      DOM.stationFilterSelect.value = selected;
+    }
   }
 }
 
 // ==================== RENDERING ====================
 function renderBoard() {
+  if (state.trips === null) return;
+
   let filtered = [...state.trips];
 
   // Tab filter
@@ -178,25 +193,27 @@ function renderBoard() {
     filtered = filtered.filter(t => t.status === 'ON_TIME');
   }
 
-  // Update Station Title
-  if (state.activeCity) {
+  const station = state.stations.find(entry => String(entry.id) === DOM.stationFilterSelect.value);
+  const query = DOM.searchInput.value.trim();
+  if (station) {
+    DOM.currentStationName.textContent = station.name;
+  } else if (state.activeCity) {
     DOM.currentStationName.textContent = `Gares de ${state.activeCity}`;
-    DOM.currentStationUic.textContent = `CITY-${state.activeCity.toUpperCase()}`;
-  } else if (DOM.searchInput.value.trim()) {
-    DOM.currentStationName.textContent = `Résultats pour "${DOM.searchInput.value.trim()}"`;
-    DOM.currentStationUic.textContent = 'SEARCH';
+  } else if (query) {
+    DOM.currentStationName.textContent = `Résultats pour « ${query} »`;
   } else {
-    DOM.currentStationName.textContent = 'Réseau National — Tous les départs';
-    DOM.currentStationUic.textContent = 'FR-NETWORK';
+    DOM.currentStationName.textContent = 'Toutes les gares';
   }
+  DOM.currentStationUic.hidden = !station?.uicCode;
+  DOM.currentStationUic.textContent = station?.uicCode ? `UIC ${station.uicCode}` : '';
 
   // Update Stats
   const total = filtered.length;
   const onTimeCount = filtered.filter(t => t.status === 'ON_TIME').length;
-  const onTimeRate = total > 0 ? Math.round((onTimeCount / total) * 100) : 100;
+  const onTimeRate = total ? `${Math.round((onTimeCount / total) * 100)}%` : '—';
 
   DOM.statTotalTrips.textContent = total;
-  DOM.statOnTimeRate.textContent = `${onTimeRate}%`;
+  DOM.statOnTimeRate.textContent = onTimeRate;
 
   if (filtered.length === 0) {
     renderEmptyState('Aucun train correspondant trouvé');
@@ -215,33 +232,33 @@ function renderBoard() {
 
     return `
       <tr>
-        <td class="cell-time">${escapeHtml(trip.departureTime || '--:--')}</td>
-        <td>
+        <td class="cell-time" data-label="Départ">${escapeHtml(trip.departureTime || '--:--')}</td>
+        <td data-label="Train">
           <div class="cell-train">
             <span class="train-number">${escapeHtml(trip.label)}</span>
             <span class="train-badge ${badgeClass}">${escapeHtml(trip.trainType || 'TRAIN')}</span>
           </div>
         </td>
-        <td>
+        <td data-label="Destination">
           <div class="cell-destination">${escapeHtml(trip.destinationName)}</div>
-          <div class="destination-sub">${trip.arrivalTime ? 'Arrivée prev. ' + escapeHtml(trip.arrivalTime) : 'Direct'}</div>
+          <div class="destination-sub">${trip.arrivalTime ? 'Arrivée à ' + escapeHtml(trip.arrivalTime) : ''}</div>
         </td>
-        <td>
-          <span style="font-weight: 600; color: #cbd5e1;">${escapeHtml(trip.departureStation?.name || 'Inconnue')}</span>
-          <div style="font-size: 0.775rem; color: #64748b;">${escapeHtml(trip.departureStation?.city || '')}</div>
+        <td data-label="Gare de départ">
+          <span class="departure-station">${escapeHtml(trip.departureStation?.name || 'Inconnue')}</span>
+          <div class="destination-sub">${escapeHtml(trip.departureStation?.city || '')}</div>
         </td>
-        <td>
-          <span class="cell-track ${trip.track ? 'track-announced' : ''}">${escapeHtml(trip.track || 'Affichage')}</span>
+        <td data-label="Voie">
+          <span class="cell-track ${trip.track ? 'track-announced' : ''}">${escapeHtml(trip.track || 'À annoncer')}</span>
         </td>
-        <td>
+        <td data-label="Statut">
           <span class="status-pill ${statusInfo.className}">
-            <span>${statusInfo.icon}</span>
+            <span aria-hidden="true">${statusInfo.icon}</span>
             <span>${escapeHtml(statusInfo.text)}</span>
           </span>
         </td>
-        <td style="text-align: right;">
-          <div class="btn-actions" style="justify-content: flex-end;">
-            <button class="btn-icon" title="Voir les détails" onclick="openTripDetails(${trip.id})">ℹ️</button>
+        <td class="actions-cell">
+          <div class="btn-actions">
+            <button class="btn btn-outline" aria-label="Détails de ${escapeHtml(trip.label)}" onclick="openTripDetails(${trip.id})">Détails</button>
             ${adminActions}
           </div>
         </td>
@@ -281,19 +298,18 @@ function renderLoadingState() {
     <tr>
       <td colspan="7" class="empty-state">
         <div class="loading-spinner"></div>
-        <p style="margin-top: 1rem;">Mise à jour des horaires en temps réel...</p>
+        <p>Chargement des départs…</p>
       </td>
     </tr>
   `;
 }
 
-function renderEmptyState(message) {
+function renderEmptyState(message, guidance = 'Essayez une autre ville, gare ou catégorie de train.') {
   DOM.tripsTableBody.innerHTML = `
     <tr>
       <td colspan="7" class="empty-state">
-        <div class="empty-icon">🚉</div>
         <h3>${escapeHtml(message)}</h3>
-        <p>Essayez de modifier votre recherche ou de sélectionner une autre ville.</p>
+        <p>${escapeHtml(guidance)}</p>
       </td>
     </tr>
   `;
@@ -368,67 +384,61 @@ function logout() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-  // Search input with debounce
-  DOM.searchInput?.addEventListener('input', (e) => {
-    const val = e.target.value;
-    DOM.searchClearBtn.style.display = val ? 'block' : 'none';
-
+  DOM.searchInput.addEventListener('input', () => {
+    const query = DOM.searchInput.value;
+    DOM.searchClearBtn.style.display = query ? 'block' : 'none';
+    DOM.stationFilterSelect.value = '';
+    state.activeCity = '';
+    setActiveButton(DOM.cityChips, query ? null : DOM.cityChips[0]);
     clearTimeout(state.searchDebounceTimer);
-    state.searchDebounceTimer = setTimeout(() => {
-      state.activeCity = '';
-      DOM.cityChips.forEach(c => c.classList.remove('active'));
-      loadTrips(val);
-    }, 250);
+    state.tripsRequest++;
+    state.searchDebounceTimer = setTimeout(() => loadTrips(), 250);
   });
 
-  DOM.searchClearBtn?.addEventListener('click', () => {
+  DOM.searchClearBtn.addEventListener('click', () => {
+    DOM.searchInput.value = '';
+    DOM.searchInput.dispatchEvent(new Event('input'));
+    DOM.searchInput.focus();
+  });
+
+  DOM.stationFilterSelect.addEventListener('change', () => {
+    clearTimeout(state.searchDebounceTimer);
+    state.activeCity = '';
     DOM.searchInput.value = '';
     DOM.searchClearBtn.style.display = 'none';
-    state.activeCity = '';
-    DOM.cityChips[0]?.classList.add('active');
+    setActiveButton(DOM.cityChips, DOM.stationFilterSelect.value ? null : DOM.cityChips[0]);
     loadTrips();
   });
 
-  // Station dropdown filter
-  DOM.stationFilterSelect?.addEventListener('change', (e) => {
-    const stId = e.target.value;
-    state.activeCity = '';
-    DOM.searchInput.value = '';
-    DOM.cityChips.forEach(c => c.classList.remove('active'));
-    loadTrips('', stId);
+  DOM.btnChime.addEventListener('click', playStationChime);
+
+  DOM.btnRefresh.addEventListener('click', async () => {
+    clearTimeout(state.searchDebounceTimer);
+    DOM.btnRefresh.disabled = true;
+    try {
+      await loadStations();
+      if (await loadTrips()) showToast('Tableau des départs actualisé.', 'info');
+    } finally {
+      DOM.btnRefresh.disabled = false;
+    }
   });
 
-  // Sound Chime Button
-  DOM.btnChime?.addEventListener('click', () => {
-    playStationChime();
-  });
-
-  // Refresh Button
-  DOM.btnRefresh?.addEventListener('click', () => {
-    loadStations().then(() => loadTrips(DOM.searchInput.value));
-    showToast('Tableau des départs actualisé.', 'info');
-  });
-
-  // City Chips
   DOM.cityChips.forEach(chip => {
     chip.addEventListener('click', () => {
-      DOM.cityChips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-
-      const city = chip.getAttribute('data-city');
-      state.activeCity = city;
+      clearTimeout(state.searchDebounceTimer);
+      setActiveButton(DOM.cityChips, chip);
+      state.activeCity = chip.dataset.city;
       DOM.searchInput.value = '';
       DOM.searchClearBtn.style.display = 'none';
+      DOM.stationFilterSelect.value = '';
       loadTrips();
     });
   });
 
-  // Filter Tabs
   DOM.filterTabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      DOM.filterTabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      state.activeFilter = tab.getAttribute('data-filter');
+      setActiveButton(DOM.filterTabs, tab);
+      state.activeFilter = tab.dataset.filter;
       renderBoard();
     });
   });
@@ -460,13 +470,13 @@ function setupEventListeners() {
   DOM.btnQuickAdmin?.addEventListener('click', () => {
     document.getElementById('loginUsername').value = 'admin';
     document.getElementById('loginPassword').value = 'admin123';
-    DOM.loginForm.dispatchEvent(new Event('submit'));
+    DOM.loginForm.requestSubmit();
   });
 
   DOM.btnQuickUser?.addEventListener('click', () => {
     document.getElementById('loginUsername').value = 'voyageur';
     document.getElementById('loginPassword').value = 'password123';
-    DOM.loginForm.dispatchEvent(new Event('submit'));
+    DOM.loginForm.requestSubmit();
   });
 
   // Login Form Submit
@@ -537,7 +547,7 @@ function setupEventListeners() {
         showToast('Nouveau train programmé.', 'success');
       }
       closeModal('tripModal');
-      loadTrips(DOM.searchInput.value);
+      loadTrips();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -568,18 +578,50 @@ function setupEventListeners() {
 }
 
 // ==================== MODAL HELPERS ====================
+function setActiveButton(buttons, activeButton) {
+  buttons.forEach(button => {
+    const active = button === activeButton;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
 function openModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) {
-    modal.classList.add('open');
-  }
+  const overlay = document.getElementById(id);
+  state.modalTrigger = document.activeElement;
+  overlay.hidden = false;
+  document.querySelectorAll('body > :not(.modal-overlay, .toast-container, script)').forEach(element => {
+    element.inert = true;
+  });
+  overlay.querySelector('.modal').focus();
+
+  overlay.onkeydown = event => {
+    if (event.key === 'Escape') closeModal(id);
+    if (event.key !== 'Tab') return;
+
+    const items = [...overlay.querySelectorAll('button, input, select, a[href]')]
+      .filter(element => !element.disabled && element.getClientRects().length);
+    const first = items[0];
+    const last = items.at(-1);
+    const focused = document.activeElement;
+    if (event.shiftKey && (focused === first || !items.includes(focused))) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && focused === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  };
 }
 
 function closeModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) {
-    modal.classList.remove('open');
-  }
+  document.getElementById(id).hidden = true;
+  document.querySelectorAll('body > [inert]').forEach(element => {
+    element.inert = false;
+  });
+  if (state.modalTrigger?.isConnected) state.modalTrigger.focus();
+  else DOM.navAuthSection.querySelector('button')?.focus();
+  state.modalTrigger = null;
 }
 
 function openCreateTripModal() {
@@ -620,35 +662,29 @@ window.openTripDetails = function(id) {
 
   const statusInfo = getStatusInfo(trip.status, trip.statusMessage);
   DOM.detailsBody.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+    <div class="details-summary">
       <div>
-        <h2 style="font-size: 1.5rem; font-weight: 800; color: #fff;">${escapeHtml(trip.label)}</h2>
-        <span class="train-badge ${getBadgeClass(trip.trainType)}" style="margin-top: 0.25rem;">${escapeHtml(trip.trainType)}</span>
+        <h2>${escapeHtml(trip.label)}</h2>
+        <span class="train-badge ${getBadgeClass(trip.trainType)}">${escapeHtml(trip.trainType)}</span>
       </div>
-      <span class="status-pill ${statusInfo.className}">${statusInfo.icon} ${escapeHtml(statusInfo.text)}</span>
+      <span class="status-pill ${statusInfo.className}"><span aria-hidden="true">${statusInfo.icon}</span> ${escapeHtml(statusInfo.text)}</span>
     </div>
-
-    <!-- Visual Route Timeline -->
     <div class="route-timeline">
       <div class="route-stop">
-        <div class="stop-dot"></div>
-        <div style="font-size: 0.8rem; font-weight: 700; color: #fbbf24;">${escapeHtml(trip.departureTime)}</div>
-        <div style="font-size: 0.85rem; font-weight: 600;">${escapeHtml(trip.departureStation?.name || 'Départ')}</div>
+        <span class="stop-dot" aria-hidden="true"></span>
+        <time>${escapeHtml(trip.departureTime)}</time>
+        <div>${escapeHtml(trip.departureStation?.name || 'Départ')}</div>
       </div>
       <div class="route-stop">
-        <div class="stop-dot stop-dot-end"></div>
-        <div style="font-size: 0.8rem; font-weight: 700; color: #38bdf8;">${escapeHtml(trip.arrivalTime || 'Terminus')}</div>
-        <div style="font-size: 0.85rem; font-weight: 600;">${escapeHtml(trip.destinationName)}</div>
+        <span class="stop-dot stop-dot-end" aria-hidden="true"></span>
+        ${trip.arrivalTime ? `<time>${escapeHtml(trip.arrivalTime)}</time>` : 'Terminus'}
+        <div>${escapeHtml(trip.destinationName)}</div>
       </div>
     </div>
-
-    <div style="background: rgba(10, 15, 29, 0.6); padding: 1.15rem; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.1); margin-bottom: 1rem;">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; font-size: 0.875rem;">
-        <div>Voie de départ : <strong style="color: #fbbf24; font-family: monospace;">${escapeHtml(trip.track || 'Affichage gare')}</strong></div>
-        <div>Statut du train : <strong style="color: #fff;">${escapeHtml(statusInfo.text)}</strong></div>
-        <div>Ville de départ : <strong>${escapeHtml(trip.departureStation?.city || '')}</strong></div>
-        <div>Code UIC Gare : <code style="font-family: monospace; color: #94a3b8;">${escapeHtml(trip.departureStation?.uicCode || '')}</code></div>
-      </div>
+    <div class="route-facts">
+      <div>Voie de départ<strong>${escapeHtml(trip.track || 'À annoncer')}</strong></div>
+      <div>Ville de départ<strong>${escapeHtml(trip.departureStation?.city || '—')}</strong></div>
+      <div>Code UIC<strong>${escapeHtml(trip.departureStation?.uicCode || '—')}</strong></div>
     </div>
   `;
   openModal('detailsModal');
@@ -695,7 +731,7 @@ window.handleDeleteTrip = async function(id) {
   try {
     await apiFetch(`/trips/${id}`, { method: 'DELETE' });
     showToast('Train supprimé du tableau.', 'info');
-    loadTrips(DOM.searchInput.value);
+    loadTrips();
   } catch (err) {
     showToast(err.message, 'error');
   }
